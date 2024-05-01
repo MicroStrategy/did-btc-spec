@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>did:btc Method Specification</title>
+  <script src="https://www.w3.org/Tools/respec/respec-w3c" async
+    class="remove"></script>
+  <script class="remove">
+    var respecConfig = {
+      specStatus: "unofficial",
+      shortName: "did-btc-method",
+      editors: [
+        {
+          name: "Daniel McNally",
+          url: "https://github.com/sangaman",
+          email: "dmcnally@microstrategy.com",
+          company: "MicroStrategy",
+          companyURL: "https://www.microstrategy.com/",
+          w3cid: 155687,
+        }
+      ],
+      authors: [
+        {
+          name: "Daniel McNally",
+          url: "https://github.com/sangaman",
+          email: "dmcnally@microstrategy.com",
+          company: "MicroStrategy",
+          companyURL: "https://www.microstrategy.com/",
+          w3cid: 155687,
+        }
+      ],
+      localBiblio: {
+        "BIP-341": {
+          title: "BIP 341",
+          href: "https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki",
+          authors: [
+            "Pieter Wuille",
+            "Jonas Nick",
+            "Anthony Towns"
+          ],
+        },
+        "BIP-136": {
+          title: "BIP 136",
+          href: "https://github.com/bitcoin/bips/blob/master/bip-0136.mediawiki",
+          authors: [
+            "Велеслав",
+            "Jonas Schnelli",
+            "Daniel Pape"
+          ],
+        },
+        "MULTIBASE": {
+          title: "The Multibase Data Format",
+          date: "February 2023",
+          href: "https://datatracker.ietf.org/doc/draft-multiformats-multibase",
+          authors: [
+            "Juan Benet",
+            "Manu Sporny"
+          ],
+          status: "Internet-Draft",
+          publisher: "IETF"
+        },
+      },
+      github: "https://github.com/MicroStrategy/did-btc-spec",
+      format: "markdown",
+      group: "did",
+      latestVersion: "https://microstrategy.github.io/did-btc-spec",
+    };
+  </script>
+</head>
+
+<body>
+
+<section id="abstract">
+
+The Bitcoin Inscription DID method (`did:btc`) uses the bitcoin blockchain exclusively to store and retrieve DID information. UTXOs on chain are used to control DIDs. Inscribing data in the witness of transactions allows for greater extensibility and verbosity when creating DID documents, while reducing fees and block space consumed.
+
+This specification conforms to the requirements specified in the DID specification [[DID-CORE]] currently published by the W3C Credentials Community Group.
+
+</section>
+
+<section id="sotd">
+
+</section>
+
+<section id="conformance">
+
+</section>
+
+# Introduction
+
+The goal of this method is to deliver trustless, tamper-proof, and long-lived decentralized identities using only the public bitcoin blockchain as a data source, while enabling full compatibility with the [[DID-CORE]] specification and forward compatibility for future extensions.
+
+`did:btc` leverages the inherent characteristics of the Bitcoin blockchain, including its decentralized architecture and immutable ledger, to ensure the tamper-resistance and distributed storage and retrieval of identity-related data.
+
+## Background
+
+### Bitcoin
+
+[Bitcoin](https://bitcoin.org/en/) is the world's first, largest, and most recognizable cryptocurrency and blockchain. It uses proof of work - whereby transactions are combined with metadata and a nonce and hashed until a sufficiently small hash is found to form a "block" - to ensure the ordering and integrity of its ledger and the transactions within. Thousands of bitcoin nodes across the world download, validate, and index blocks as they are created and propagated across the network. These nodes typically store blocks and share them with other nodes in perpituity. 
+
+Although bitcoin transactions typically contain data pertaining to the movement of coins from one address to another, they may also contain arbitrary data. A bitcoin [opcode](https://en.bitcoin.it/wiki/Script#Opcodes), [OP_RETURN](https://en.bitcoin.it/wiki/OP_RETURN), not only marks an output as unspendable, but it also allows up to 80 bytes of arbitrary data to be added to the transaction. This has historically been used to add short messages, links, and hashes to the blockchain.
+
+### Inscriptions
+
+Bitcoin transactions consist primarily of two main pieces of data:
+
+1. "Outputs," which create new coins and specify the conditions that must be satisfied to spend those coins (e.g. specifying a public key which must sign the spending transaction).
+
+2. "Inputs" (a.k.a "prevouts"), which reference previous outputs and provide data that satisfies their spending requirements (e.g. a signature matching a specified public key). The value of all inputs must be greater than or equal to the value of all outputs, thereby ensuring coins cannot be created "out of thin air."
+
+A protocol change in 2017, Segregated Witness ([SegWit](https://en.wikipedia.org/wiki/SegWit)), introduced a third piece of data known as the "witness." SegWit transactions place all data necessary to satisfy the spending conditions for the inputs in the witness rather than the inputs, and this data is weighted at 25% the rate at which all other transaction data is weighted for purposes of block space consumption and required fees. This makes witness data significantly more economical as compared to, for example, `OP_RETURN` data which is part of the a transaction's outputs.
+
+Another protocol change in 2021, Taproot (aka SegWit v1), made numerous changes to the way witness data could be used. Notably, it lifted a limit of 10,000 bytes on the size of the [ScriptPubKey](#dfn-scriptpubkey).
+
+The removal of this limit combined with the discount for witness data led to a technique known as "inscriptions" whereby arbitrary data is stored in the witness of a transaction. This data is deliberately ignored by the bitcoin protocol, but can be extracted and parsed from blocks containing them by inscription-aware software. Images and other rich media can be stored within this arbitrary data.
+
+`did:btc` uses a similar (but slightly modified) approach to inscriptions as Ordinals but stores only DID-related data and updates. This allows for DID documents to be created and updated with few restrictions on size and content while taking advantage of the SegWit discount.
+
+## Comparison with Existing DID Methods
+
+There are DID methods that exist which use the bitcoin blockchain as well, but they introduce additional external dependencies. This section compares these existing methods with `did:btc`.
+
+### `did:btcr`
+
+The Bitcoin Reference DID method (`did:btcr`) has a number of similarities to `did:btc` in its stated purpose and design. However it has several limitations that are are addressed by `did:btc`.
+
+First, `did:btcr` defaults to using secp256k1 subject keys, which are older and considered less performant and secure compared to newer curves like ed25519. In contrast, `did:btc` allows for the use of any curve or key type, enhancing functionality and forward compatibility. 
+
+Secondly, `did:btcr` relies on referencing a URL to fetch DID document data, which compromises the immutable nature of the blockchain as the content at the URL may change or disappear over time. On the other hand, `did:btc` stores additional data for the DID document directly on-chain, ensuring its permanence and integrity. `did:btc` can store arbitrary amounts of data in the witness of bitcoin transactions through inscriptions, a technique made possible by taproot script path reveal transactions, which were not available when `did:btcr` was developed in 2019.
+
+Lastly, `did:btc` draws a distinction between the "wallet keys" used to sign bitcoin transactions on chain and the "subject keys" that can be used to authenticate and make assertions as the DID subject. This allows for the controller of a DID to be distinct from its subject, enabling a third party to "manage" a DID on behalf of its subject or even require multiple signatures. In fact, the conditions required to control a DID can be as complex and secure as allowed by the bitcoin protocol to control coins. The keys necessary to update or revoke a DID, such as in the case of lost or compromised subject keys, can therefore be held to a higher degree of security than the subject keys themselves.
+
+### `did:ion`
+
+[ION](https://github.com/decentralized-identity/ion) (`did:ion`) also uses the bitcoin blockchain for its decentralized identifiers. However, unlike `did:btc` what goes on chain is only a pointer to a document in IPFS, and resolving ION dids requires indexing all the data on [IPFS](https://www.ipfs.com/) that is pointed to by bitcoin transactions. While this does guarantee the ordering and integrity of DID operations on IPFS, it introduces a number of external dependencies besides the bitcoin blockchain.
+
+### Non-bitcoin blockchain-based DID methods
+
+There are other DID methods that use blockchains other than bitcoin, and this section does not exhaustively cover them. Generally speaking, these methods use a similar approach to interacting with their respective blockchains, and make similar claims to their decentralized nature. However, bitcoin is the most recognizable, most established, and most distributed blockchain. It is secured by the most proof of work, and free from control by any governing bodies.
+
+## Considerations
+
+Despite the noted improvements over previous DID methods using the bitcoin blockchain, there are still several drawbacks and considerations of `did:btc` compared to methods that use less secure blockchains or trusted data sources such as internet domains.
+
+Even with the SegWit discount, making bitcoin transactions and consuming bitcoin block space can be expensive. This DID method is likely the most expensive per byte of DID document data used. Although this confers some benefit against sybil attacks by placing a cost on creating identities, this cost is also incurred by legitimate users. 
+
+The price of block space also fluctuates greatly and can often lead to wait times of hours or days before a broadcast transaction is included in a block. `did:btc` operations will never be instant, and may take hours. However, urgent operations can be expedited for an additional fee.
+
+Resolving `did:btc` dids requires access to a bitcoin node. Although many block explorers and other public servers (such as [Electrum](https://electrum.org/)) offer access to bitcoin blockchain data for free, they introduce some degree of trust and external dependencies - which is exactly what `did:btc` seeks to eliminate. Running ones own bitcoin node requires some degree of computing power and technical proficiency and cannot be expected of all `did:btc` users. However, software specific to `did:btc` can be designed to run in a simple, efficient way - indexing only pertinent transactions from the bitcoin blockchain and discarding everything else after it has been processed.
+
+<section class="informative">
+# Terminology
+
+This section defines the terms used in this specification. A link to these terms is included whenever they appear in this specification.
+
+<dl class="termlist">
+
+<dt><dfn data-lt="didindex">DID Index</dfn></dt>
+<dd>
+The index of a given DID within a <a href="#batch-create">batched DID creation</a> transaction. Batched creation transactions contain a byte vector of public keys which can be separated into an array according to key length, and the DID Index is the position of the public key in this array.
+
+For example, a batch containing ten 32 byte ed25519 public keys will have a 320 byte vector where the first 32 bytes represent the first public key, the next 32 bytes represent the second public key, and so on.
+</dd>
+
+<dt><dfn data-lt="didutxo">DID UTXO</dfn></dt>
+<dd>
+The DID UTXO is an unspent bitcoin transaction output that is used to control a DID. It is created in the same transaction as the DID itself, and can be used to update or deactivate the DID in future transactions. The DID UTXO is a Pay-To-Taproot (`p2tr`) output, which allows for complex spending conditions to be defined for the DID.
+</dd>
+
+
+<dt><dfn data-lt="multikey">Multikey</dfn></dt>
+<dd>
+A data model that combines a prefix indicating the key type followed by the public key bytes and encodes them in [[MULTIBASE]] format. See the <a href="https://www.w3.org/TR/vc-data-integrity/#multikey">VC-DATA-INTEGRITY</a> spec for more details.
+</dd>
+
+<dt><dfn data-lt="txref">TxRef</dfn></dt>
+<dd>
+TxRef encoding provides a convenient and human-readable way to refer to a confirmed Bitcoin transaction and, optionally, a specific output within that transaction. `did:btc` leverages TxRef to create a standardized, reliable, and concise reference to a Bitcoin transaction associated with a DID. TxRef is defined in [[BIP-136]].
+</dd>
+
+<dt><dfn data-lt="script">Script</dfn></dt>
+<dd>
+A <a href="https://en.bitcoin.it/wiki/Script">scripting language</a> consisting of <a href="https://en.bitcoin.it/wiki/Script#Opcodes">opcodes</a> used for bitcoin transactions.
+</dd>
+
+<dt><dfn data-lt="scriptpubkey">ScriptPubKey</dfn></dt>
+<dd>
+A bitcoin <a href="#dfn-script">script</a> that defines the spending conditions for an output. This script is evaluated by nodes on the bitcoin network to determine if a transaction spending the output is valid.
+</dd>
+
+
+</dl>
+</section>
+
+
+# DID Method Specification
+
+## Method Name
+
+The namestring that shall identify this DID method is: `btc`. A DID that uses this method MUST begin with the following prefix: `did:btc`. Per the DID specification, this string MUST be in lowercase. 
+
+To reference a transaction on the bitcoin testnet network, the DID SHOULD use the following prefix: `did:btc:test`.
+
+## Method Specific Identifier
+
+The method specific identifier is a [TxRef](#dfn-txref) conforming to [[BIP-136]] that references a bitcoin transaction creating a DID. 
+
+<aside class="example"
+title="Example did:btc identifier using TxRef">
+did:btc:xg4x-ay5y-q5zq-232
+</aside>
+
+## DID Method Operations
+
+### Create
+
+A DID creation transaction MUST contain an `OP_RETURN` in its first output with bytes in the following order:
+
+1. 3 bytes: ASCII `did` as a human readable way to flag the transaction as a DID creation transaction.
+
+2. 1 byte: A byte containing bit-wise flags to indicate the [Verification Relationships](https://w3c.github.io/did-core/#verification-relationships) to be used for the DID's initial subject key. These bits are as follows, from lowest to highest:
+
+    1. Authentication
+
+    2. Assertion
+
+    3. Key Agreement
+
+    4. Capability Invocation
+
+    5. Capability Delegation
+
+3. Up to 76 bytes: The initial subject public key in [Multikey](#dfn-multikey) format, which prefixes the raw public key with a codec indicating the type of key according to the [Multicodec](https://github.com/multiformats/multicodec) spec. 
+
+<aside class="example"
+title="OP_RETURN output broken down by bytes">
+Refer to the transaction viewable on the [BlockStream Testnet Explorer](https://blockstream.info/testnet/tx/5acfba9c13bd92c27e9aa8b8cd75d03730571b2dfcc7f81543e9c15cc1efb961?expand)
+
+The first output of the transaction has a [ScriptPubKey](#dfn-scriptpubkey) of `6a2664696403ed01ab96ce260bf08a2fc35eda73fee1357b67e50946ca100af0c452ae695ac73053`.
+
+- `6a`: The `OP_RETURN` opcode.
+
+- `26`: An opcode indicating that the next 36 bytes should be pushed on to the stack - this is effectively the length of the `OP_RETURN` payload and cannot be greater than 80 bytes.
+
+- `646964`: `did` in ASCII
+
+- `03`: A byte with the lowest two bits set, indicating the following key should have Authentication and Assertion Verification Relationships for the DID.
+
+- `ed01`: A Multicodec prefix of ed encoded as a varint, indicating that what follows will be a 32 byte ed25519 public key.
+
+- `ab96ce260bf08a2fc35eda73fee1357b67e50946ca100af0c452ae695ac73053`: A 32 byte ed25519 public key.
+</aside>
+
+It MAY contain a Pay-To-Taproot (`p2tr`) as its second output, which can be used for updating or deactivating the DID in future bitcoin transactions. This output is called the [DID UTXO](#dfn-didutxo). If the transaction does not have a second output, or if the second output is not a `p2tr` output, the DID is final and cannot be updated or deactivated at a later time.
+
+Once this transaction is confirmed, the block height and transaction index at which it is confirmed can be encoded into a [TxRef](#dfn-txref) to form a `did:btc` identifier. DID creators MUST wait at least 6 blocks once the transaction has been confirmed before publishing its identifier, to reduce the risk of a chain reorganization which may change the DID's block height or transaction index.
+
+<aside class="example" title="TxRef encoding">
+The transaction above was confirmed at:
+
+- A block height of 2582910
+- A tx index of 132
+- On the testnet network. 
+
+This encodes to a TxRef of `xuh5-ayyy-q3q0-kp0`, resulting in a DID identifier iof `did:btc:test:xuh5-ayyy-q3q0-kp0`.
+</aside>
+
+#### Batch Create
+
+DIDs can be created in batches to reduce transaction overhead and fee costs. Since multiple public keys can quickly exceed the 80 byte `OP_RETURN` limit, a batched creation transaction instead puts public keys in the witness of a reveal transaction. This requires both a commitment transaction and a reveal transaction which increases overhead. However, the overhead is fixed for any number of DIDs and keys in a batch, and therefore the cost in terms of virtual bytes consumed per DID created asymptotically approaches the size of a public key * 25% for the segwit discount. In case of ed25519 keys, this asymptote is roughly 8 bytes (32 * 0.25).
+
+| Batch Size | Commitment VBytes | Reveal VBytes | Total VBytes | Vbytes / DID |
+|------------|-------------------|---------------|--------------|--------------|
+| 2          | 154               | 148           | 302          | 151          |
+| 10         | 154               | 213           | 367          | 36.7         |
+| 100        | 154               | 937           | 1091         | 10.91        |
+| 1000       | 154               | 8178          | 8332         | 8.33         |
+| 10,000     | 154               | 80594         | 80748        | 8.07         |
+
+Each batch of DID is associated with at most a single [DID UTXO](#dfn-didutxo), making it an efficient choice for collections of DIDs that share a common controller. See [Batch Update](#batch-update) for more details on this process.
+
+DIDs are created in batches using the steps below.
+
+1. Assemble a payload to be revealed in the reveal transaction. This payload MUST contain the following bytes in order:
+
+    1. ASCII did as a human readable way to flag the transaction as a DID creation transaction.
+
+    2. A Multicodec prefix encoded as a varint, indicating the key type of the following keys.
+
+    3. A byte containing bit-wise flags to indicate the Verification Relationships to be used for thefollowing keys.
+
+    4. A vector of bytes containing a sequence of public keys in order.
+
+2. Create an inscription [ScriptPubKey](#dfn-scriptpubkey) containing the following data and opcodes.
+
+    1. A [script](#dfn-script) defining the spending conditions for the reveal transaction. In the simplest case, this script would require a signature from a specified public key:
+
+        1. A 32 byte, x-only secp256k1 public key.
+
+        2. `OP_CHECKSIG` - indicating that the transaction should have a signature matching the public key above.
+
+    2. `OP_FALSE` followed by `OP_IF` - ensuring that nodes following the bitcoin protocol do not enter the if branch containing the payload.
+
+    3. The payload from step 1 in chunks of 520 bytes.
+
+    4. `OP_ENDIF`
+
+3. Create a commitment transaction with a single output that commits to the [ScriptPubKey](#dfn-scriptpubkey) in step 2 for its script path according to [[BIP-341]].
+
+4. Create a reveal transaction that spends the output from step 3 using its script path. This will reveal the payload from step 1, effectively inscribing it in the block that confirms it.
+
+5. Create [TxRefs](#dfn-txref) for each key in the batch. This is done by using the block height and tx index of the confirmed transaction as well as the [DID Index](#dfn-didindex) as the outpoint. The [DID Index](#dfn-didindex) is the index of the public key in the byte vector described in step 1d above.
+
+| Block Height | Tx Index | DID Index | TxRef                  |
+|--------------|----------|-----------|------------------------|
+| 2575424      | 1295     | 0         | xqyx-ay0g-pxhg-hvu     |
+| 2575424      | 1295     | 1         | 8qyx-ay0g-ppqq-9x6q-s0 |
+| 2575424      | 1295     | 2         | 8qyx-ay0g-pzqq-rqps-jw |
+
+### Read (Resolve)
+
+Resolving a `did:btc` DID can be done using the following steps:
+
+1. Decoding the [TxRef](#dfn-txref) it contains, which provides a block height and transaction index.
+
+2. Fetching the block (using, for instance bitcoin core's `getblock` call) and parsing it to extract the transaction at the given index.
+
+3. Verify that the transaction contains an `OP_RETURN` as its first output, starting with `did` in ASCII.
+
+4. Extract the 4th byte of the `OP_RETURN` payload, if present. Read the flagged bits (as specified in [Create](#create)) to determine the DID's Verification Relationships.
+
+5. Extract the remaining bytes of the `OP_RETURN` payload, if present. Decode this as a MultiKey to determine the key type and public key of the subject key.
+
+6. Extract the public key used in the [ScriptPubKey](#dfn-scriptpubkey) for the [DID UTXO](#dfn-didutxo) in the second output, if present, to determine the controller key.
+
+7. Construct a DID document using the data gathered in steps 3 through 6 above.
+
+<pre class="example json" title="A did:btc DID Document constructed from a creation transaction">
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/multikey/v1"
+  ],
+  "id": "x20r-ayaz-qqtl-ljk",
+  "controller": "did:key:z6DtNrvHVvvKHB7m8LrCmt131TGH7DbzvcPo9mZRoCt5rqms",
+  "verificationMethod": [
+    {
+      "id": "x20r-ayaz-qqtl-ljk#key-0",
+      "controller": "x20r-ayaz-qqtl-ljk",
+      "type": "Multikey",
+      "publicKeyMultibase": "z6MkfNwZ7ncwr54BVWA9taEJLaHAWYEuqMNQfBzrwLEoaoVB"
+    }
+  ],
+  "authentication": [
+    "x20r-ayaz-qqtl-ljk#key-0"
+  ],
+  "assertion": [
+    "x20r-ayaz-qqtl-ljk#key-0"
+  ]
+}
+</pre>
+
+The steps above resolve the state of the DID as of the time it was created. The following steps can determine if a DID has been updated and get the latest version of its DID document:
+
+1. Determine whether the last transaction checked has a `p2tr` output; for creation transactions this should be in the second index while for update transactions this should be in the first index. If not, the DID should be considered final. If so, proceed to step 2.
+
+2. Check whether the output is spent. If not, the DID has not been updated. If so, proceed to step 3.
+
+3. Fetch the transaction spending the output from the previous step.
+
+4. Check if the spending transaction has a witness with two or more elements, which indicates a script path spend. If not, this transaction does not update the DID, return to step 1. If so, proceed to step 5.
+
+5. Parse the second witness element, which holds the locking script, and check if it contains an `OP_IF` byte followed by `did` in ASCII. If not, this transaction does not update the DID, return to step 1. If so, proceed to step 6.
+
+6. Parse the remainder of the locking script to extract the payload of the update. This is done by reading data in 520 byte chunks, starting after the first `OP_IF` byte, and separated by `OP_IF` bytes every 520 bytes before ending with `OP_ENDIF`. This chunking is required due to a restriction in the bitcoin protocol that limits the size of byte vectors to 520 bytes. The first three `did` bytes should be removed from the payload.
+
+7. The payload will be a JSON document describing the updates to the DID document. This should be parsed and applied to the DID document. See the structure and procedure described in [Update](#update) fow how to apply these updates.
+
+8. Return to step 1 and repeat.
+
+### Update
+
+`did:btc` DIDs can be updated on chain, preserving the DID identifier while modifying its corresponding keys and/or content of its DID document. This is done by creating a new transaction that spends the [DID UTXO](#dfn-didutxo) for a given DID.
+
+Updates are JSON documents with 4 possible keys:
+
+1. `vm`: Changes to the Verification Methods, which are the keys used to perform actions as the subject of the DID. This key is an array of operations, which can specify an index `i`, a [Multikey](#dfn-multikey) `k`, and/or a Verification Relationship flag `vr`. Operations fall into three subtypes:
+
+    1. Deletion, which only provides the index of the key to be removed.
+
+    2. Update, which specifies the index of the key to be updated along with an updated key and/or Verification Relationships.
+
+    3. Append, which specifies a key and Verification Relationships but does not specify an index.
+
+2. `u`: Updates to keys in the DID document. This is an array of keys to be updated within the document. If a key's value is an array, only the entry in the array with the provided id is updated.
+
+3. `d`: Deletion of keys from the DID document. This is an array of keys to be deleted from the document. If a key's value is an array, only the entry in the array with the provided id is deleted.
+
+4. `a`: Addition of keys to the DID document. This is an array of keys to be added to the document. If a key's value is an array, the entries within are added to the existing array.
+
+The JSON document below provides examples for all the types of updates listed above.
+
+```json
+{
+  "vm": [ // changes to verification methods
+    { "i": 0 }, // delete the 0th key
+    { "i": 1, "k": 'z6Mkk8UN3tPb4sEhEvTGbv5Q6qXsG2hBwsWNjwya4tBBqLur' }, // update the 1th key
+    { "i": 3, "vr": 7 }, // update the verification relationships of the 3th key
+    { "k": "z6Mkr158mX63UMtTWm42jNbkhExBcVqJWwg5uo9vbyoBHGFk", "vr": 3 } // append a new key
+  ],
+  "u": [ // updates to keys in the DID document
+    {
+      "service": [{
+        "id":"linked-domain1", // update the service with id linked-domain1
+        "serviceEndpoint": "https://didservice.com" // update the service endpoint 
+      }]
+    }
+  ],
+  "d": [ // deletion of keys from the DID document
+    {
+      "service": [{
+        "id":"linked-domain2", // delete the service with id linked-domain2
+      }]
+    }
+  ],
+  "a": [ // keys to append to the DID document
+    {
+      "service": [{
+        "id":"linked-domain3", // create a service with linked-domain3
+        "type": "LinkedDomains", 
+        "serviceEndpoint": "https://bar.example.com"
+      }]
+    }
+  ]
+}
+```
+
+This JSON document is inscribed in the witness of the transaction spending the [DID UTXO](#dfn-didutxo) for a given DID. The changes within the document are applied to the corresponding DID.
+
+Update transactions MAY create a new [DID UTXO](#dfn-didutxo) output in the first output index of the transaction to allow future updates to be performed to the DID. If no new [DID UTXO](#dfn-didutxo) output is created, the DID becomes final and cannot be updated further or revoked.
+
+#### Batch Update
+
+Updates to a DID that was created in a batch are a JSON array of updates in the structure above. For example, a transaction that intends to update the DID in the 5th (zero-based) index of a batch of DIDs would be structured as below:
+
+```json
+[
+  { 
+    "i": 5,
+    "p": { 
+      ... // updates in the structure described in [Update](#update)
+    }
+  }
+]
+```
+
+### Deactivate (Revoke)
+
+A `did:btc` DID is considered deactivated when its [DID UTXO](#dfn-didutxo) is spent in a transaction where the first output is an `OP_RETURN` with a payload of a single byte of `d` in ASCII. This indicates the DID should be considered permanently deactivated as of the time of the deactivation transaction.
+
+#### Batch Deactivate
+
+Deactivating one or more DIDs that were created in a batch can be done by revealing a JSON document with a JSON array containing an object with an array at key `d` of [DID Index](#dfn-didindex) positions to deactivate. See the example below:
+
+```json
+[
+  {
+    "d": [4, 7, 9] // deactivate the 4th, 7th, and 9th indexed DIDs in the batch
+  }
+]
+```
+
+# Security Considerations
+
+`did:btc` inherits the security framework of bitcoin itself. As such, it is resistant to many common forms of internet attacks, including:
+
+- Eavesdropping: Bitcoin transactions are public in nature, thus eavesdropping does not apply.
+
+- Replay: Replay attacks cannot be performed on the bitcoin network, as each transaction permanently consumes the UTXOs that it spends from. A replay of the same transaction will be rejected by the bitcoin network.
+
+- Message insertion: Inserting bad data into bitcoin transactions is generally not possible, as any data inserted by an attacker will cause the signature validation to fail. Once a transaction is signed and broadcast by its creator, any tampering of the transaction by a third party causes it to become invalid.
+
+- Man-in-the-middle: Like insertion attacks above, man-in-the-middle attacks cannot be executed on bitcoin transactions as any tampering of the bitcoin transaction causes it to become invalid.
+
+- Deletion: Bitcoin transactions are rapidly broadcast to a network consisting of thousands of nodes, and deleting them becomes impractical. Once confirmed in a block, deleting the transaction becomes effectively impossible as it would require a sustained 51% attack.
+
+- Modification: As with deletion, insertion, or man-in-the-middle attacks, modifying transactions after they have been signed and/or confirmed is not possible on bitcoin.
+
+- Denial of Service or Amplification attacks: Although these are technically possible on the bitcoin network, the bitcoin protocol has numerous countermeasures in place and has stood the test of time with near 100% uptime since its launch in 2009. A bitcoin node being used for the `did:btc` method faces no additional DoS threats or challenges beyond what any bitcoin node on the network already faces.
+
+However, there are security considerations pertaining to key management. An attacker that compromises wallet keys can assume permanent control over DIDs and fraudulently update or revoke them. Similarly, lost wallet keys result in permanent loss of ability to update or revoke associated DIDs.
+
+For this reason, DID creators and controllers should consider using wallet best practices such as multi-signature wallets and backup seed phrases.
+
+# Privacy Considerations
+
+`did:btc` inherits the privacy framework of bitcoin itself. The blockchain is public, therefore all transactions, including DID data and operations, are public. However, real-world identities are not tied to bitcoin addresses and transactions. DIDs on the blockchain can therefore be pseudonymous.
+
+Personal information should be kept off the ledger according to DID best practices. Not only is this a privacy concern due to the public nature of the blockchain, it is inherently unreliable since the blockchain can be written to by anyone. Fraudulent claims of identity or connections to real world identities can be inscribed on the blockchain like any other arbitrary data.
+
+## Surveillance
+
+On-chain activity pertaining to DID creation and updates is public, and may leak information about the controller of the DID. For instance, a transaction that uses a 10 BTC input to create a DID demonstrates that the creator of the DID owns at least 10 BTC.
+
+## Correlation
+
+Observers of the blockchain may also correlate DID transactions with other DID transactions or other financial transactions using blockchain analysis. For example, DIDs with the same controller key or DIDs within the same batch may be trivially linked together.
+
+</body>
+</html>
