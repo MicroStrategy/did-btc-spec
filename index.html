@@ -271,7 +271,7 @@ This encodes to a TxRef of `xuh5-ayyy-q3q0-kp0`, resulting in a DID identifier o
 
 DIDs can be created in batches to reduce transaction overhead and fee costs. Since multiple public keys can quickly exceed the 80 byte `OP_RETURN` limit, a batched creation transaction instead puts public keys in the witness of a reveal transaction. This requires both a commitment transaction and a reveal transaction which increases overhead. However, the overhead is fixed for any number of DIDs and keys in a batch, and therefore the cost in terms of virtual bytes consumed per DID created asymptotically approaches the size of a public key * 25% for the segwit discount. In case of ed25519 keys, this asymptote is roughly 8 bytes (32 * 0.25).
 
-| Batch Size | Commitment VBytes | Reveal VBytes | Total VBytes | Vbytes / DID |
+| Batch Size | Commitment VBytes | Reveal VBytes | Total VBytes | VBytes / DID |
 |------------|-------------------|---------------|--------------|--------------|
 | 2          | 154               | 148           | 302          | 151          |
 | 10         | 154               | 213           | 367          | 36.7         |
@@ -376,7 +376,7 @@ The steps above resolve the state of the DID as of the time it was created. The 
 
 6. Parse the remainder of the locking script to extract the payload of the update. This is done by reading data in 520 byte chunks, starting after the first `OP_IF` byte, and separated by `OP_IF` bytes every 520 bytes before ending with `OP_ENDIF`. This chunking is required due to a restriction in the bitcoin protocol that limits the size of byte vectors to 520 bytes. The first three `did` bytes should be removed from the payload.
 
-7. The payload will be a JSON document describing the updates to the DID document. This should be parsed and applied to the DID document. See the structure and procedure described in [Update](#update) fow how to apply these updates.
+7. The payload will be a JSON document describing the updates to the DID document. This should be parsed and applied to the DID document. See the structure and procedure described in [Update](#update) for how to apply these updates.
 
 8. Return to step 1 and repeat.
 
@@ -428,7 +428,7 @@ The JSON document below provides examples for all the types of updates listed ab
   "a": [ // keys to append to the DID document
     {
       "service": [{
-        "id":"linked-domain3", // create a service with linked-domain3
+        "id":"linked-domain3", // create a service with id linked-domain3
         "type": "LinkedDomains", 
         "serviceEndpoint": "https://bar.example.com"
       }]
