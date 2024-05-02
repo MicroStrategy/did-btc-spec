@@ -7,3 +7,5 @@ The latest version of the specification can be viewed at [https://microstrategy.
 ## Editing the Specification
 
 This specification uses [ReSpec](https://github.com/w3c/respec/) html. Just edit [index.html](index.html) and open it in a browser to render and inspect the latest changes.
+## Others language
+ - [简体中文 zh_CN](./index_zh_CN.html)

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <title>did:btc Method Specification</title>
+  <script src="https://www.w3.org/Tools/respec/respec-w3c" async
+    class="remove"></script>
+  <script class="remove">
+    var respecConfig = {
+      specStatus: "unofficial",
+      shortName: "did-btc-method",
+      editors: [
+        {
+          name: "Daniel McNally",
+          url: "https://github.com/sangaman",
+          email: "dmcnally@microstrategy.com",
+          company: "MicroStrategy",
+          companyURL: "https://www.microstrategy.com/",
+          w3cid: 155687,
+        }
+      ],
+      authors: [
+        {
+          name: "Daniel McNally",
+          url: "https://github.com/sangaman",
+          email: "dmcnally@microstrategy.com",
+          company: "MicroStrategy",
+          companyURL: "https://www.microstrategy.com/",
+          w3cid: 155687,
+        }
+      ],
+      localBiblio: {
+        "BIP-341": {
+          title: "BIP 341",
+          href: "https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki",
+          authors: [
+            "Pieter Wuille",
+            "Jonas Nick",
+            "Anthony Towns"
+          ],
+        },
+        "BIP-136": {
+          title: "BIP 136",
+          href: "https://github.com/bitcoin/bips/blob/master/bip-0136.mediawiki",
+          authors: [
+            "Велеслав",
+            "Jonas Schnelli",
+            "Daniel Pape"
+          ],
+        },
+        "MULTIBASE": {
+          title: "The Multibase Data Format",
+          date: "February 2023",
+          href: "https://datatracker.ietf.org/doc/draft-multiformats-multibase",
+          authors: [
+            "Juan Benet",
+            "Manu Sporny"
+          ],
+          status: "Internet-Draft",
+          publisher: "IETF"
+        },
+      },
+      github: "https://github.com/MicroStrategy/did-btc-spec",
+      format: "markdown",
+      group: "did",
+      latestVersion: "https://microstrategy.github.io/did-btc-spec",
+    };
+  </script>
+</head>
+
+<body>
+
+<section id="abstract">
+
+比特币铭文 DID 方案（**did:btc**）使用比特币区块链来存储和检索DID信息。链上的UTXO用于控制DID。在交易的见证部分写入数据DID 数据具备更大的扩展性(extensibility)和详细程度(verbosity)，同时减少费用和占用区块空间。
+
+本规范符合W3C Credentials Community Group当前发布的DID规范[[DID-CORE](https://microstrategy.github.io/did-btc-spec/#bib-did-core)]中指定规范。
+
+</section>
+
+<section id="sotd">
+
+</section>
+
+<section id="conformance">
+
+</section>
+
+# 引言
+
+该方案的目标是仅使用公共比特币区块链作为数据源，提供无需信任、防篡改且长期有效的去中心化身份，同时确保与[DID-CORE](https://microstrategy.github.io/did-btc-spec/#bib-did-core)规范的完全兼容性，并为未来的扩展提供向前兼容性。
+
+**did:btc** 利用比特币区块链的固有特性，包括其去中心化架构和不可变账本，以确保身份相关数据的防篡改性以及分布式存储和检索。
+
+
+## 背景
+
+### 比特币
+
+[比特币](https://bitcoin.org/en/)是世界上第一个、最大和最知名的加密货币及区块链。它采用工作量证明机制——通过将交易数据与元数据和随机数混合后进行哈希运算，直到找到一个足够小的哈希值以形成一个“区块”——以确保其账本的顺序和完整性以及其中的交易。全球数千个比特币节点下载、验证并索引创建并在网络中传播的区块。这些节点通常会永久存储区块并与其他节点共享。
+
+尽管比特币交易通常包含从一个地址到另一个地址的币的移动数据，但它们也可以包含任意数据。一个比特币操作码，OP_RETURN，不仅将一个输出标记为不可花费，而且还允许将最多80字节的任意数据添加到交易中。这一直被用来在区块链上添加短消息、链接和哈希字符串。
+
+### 铭文
+
+比特币交易主要由两部分数据组成：
+1. “输出(Outputs)”，存储比特币的数据结构，包含满足特定花费这些币的条件（例如，指定必须签名花费交易的公钥）。
+2. “输入(Inputs)”（又称“前输出”），引用之前的输出并提供满足其花费要求的数据（例如，与指定公钥匹配的签名）。所有输入的值必须大于或等于所有输出的值，从而确保不能“凭空”创建币。
+
+比特币网络 2017年的协议升级引入隔离见证（SegWit），引入了称为“见证”的第三种数据类型。SegWit交易将所有满足输入的花费条件所需的数据放在见证中，而不是输入中，且这些数据的权重为所有其他交易数据权重的25%，用于计算区块空间消耗和所需费用。这使得与例如OP_RETURN数据相比，见证数据在经济上更具优势，OP_RETURN数据是交易输出的一部分。
+
+比特币网络2021年的另一次协议升级引入 Taproot（又名SegWit v1），对见证数据的使用方式进行了多项更改。值得注意的是，它取消了对[ScriptPubKey](#dfn-scriptpubkey)大小为10,000字节的限制。
+
+取消这一限制并结合见证数据的压缩，引入了一种称为“铭文”的技术，通过该技术，任意数据被存储在交易的见证数据中。比特币协议故意忽略这些数据，但可以通过包含它们的区块中的铭文感知软件提取和解析这些数据。图像和其他富媒体可以存储在这些任意数据中。
+
+did:btc采用了与Ordinals相似（但略有修改）的铭文方法，但仅存储与DID相关的数据和更新。这使得在尺寸和内容方面对DID文档的创建和更新几乎没有限制，同时利用了SegWit压缩。
+
+## 与现有DID方法的比较
+
+也有使用比特币区块链的DID方法，但它们引入了额外的外部依赖。本节将这些现有方法与did:btc进行比较。
+
+### `did:btcr`
+
+比特币引用DID方法（did:btcr）在其声明的目的和设计上与did:btc有许多相似之处。然而，它有几个限制，这些限制在did:btc 得以解决。
+
+首先，did:btcr默认使用secp256k1主题密钥，这些密钥较旧，与比如ed25519这样的新密码学曲线相比，性能和安全性被认为较差。相比之下，did:btc允许使用任何曲线或密钥类型，增强了功能性和向前兼容性。
+
+其次，did:btcr依赖于引用URL来获取DID文档数据，这破坏了区块链不可变性的本质，因为URL上的内容可能随时间改变或消失。另一方面，did:btc直接在链上存储DID文档的额外元数据，确保了其永久性和完整性。did:btc可以通过铭文在比特币交易的见证中存储任意数量的数据，这一技术得益于taproot脚本路径揭示交易，而taproot在did:btcr于2019年开发时尚不可用。
+
+最后，did:btc在链上签名比特币交易的“钱包密钥”与可用于认证和作为DID主体进行声明的“主题密钥”之间做了区分。这允许DID的控制者与其主体不同，使第三方可以代表其主体“管理”DID，甚至要求多个签名。事实上，控制DID所需的条件可以像比特币协议控制币一样复杂和安全。因此，更新或撤销DID的必要密钥（例如在主题密钥丢失或被泄露的情况下）可以比主题密钥本身持有更高的安全级别。
+
+### `did:ion`
+
+ION（did:ion）也使用比特币区块链用于其去中心化标识符。然而，与did:btc不同，链上的内容仅是指向IPFS中文档的指针，解析ION did需要索引比特币交易所指向的IPFS上的所有数据。虽然这确保了IPFS上DID操作的顺序和完整性，但它引入了比比特币区块链更多的外部依赖。
+
+### 不基于比特币区块链设施的DID 方案
+
+还有其他使用非比特币区块链的DID方法，本节并未详尽覆盖它们。一般来说，这些方法使用类似的方式与各自的区块链交互，并对其去中心化性质提出类似的声明。然而，比特币是最知名、最成熟、分布最广的区块链。它由最多的工作量证明来保护，且不受任何管理机构的控制。
+
+## 考虑因素
+
+尽管与使用比特币区块链的先前DID方法相比有所改进，但与使用较不安全的区块链或如互联网域名这样的可信数据源的方法相比，did:btc仍有几个缺点和考虑因素。
+
+即使有SegWit压缩，进行比特币交易和消耗比特币区块空间也可能是昂贵的。这种DID方法可能是每字节DID文档数据使用成本最高的。尽管这对防止女巫攻击提供了一些好处，通过对创建身份设置成本，但这种成本也由用户承担。
+
+区块空间的价格也波动很大，经常导致广播交易被包含在区块中前需要等待数小时或数天。did:btc操作永远不会是即时的，可能需要数小时。然而，紧急操作可以通过支付额外费用来加速。
+
+解析did:btc did需要访问比特币节点。尽管许多区块浏览器和其他公共服务器（如Electrum）免费提供比特币区块链数据的访问，但它们引入了一定程度的信任和外部依赖——这正是did:btc试图消除的。运行自己的比特币节点需要一定程度的计算能力和技术熟练度，并不能期望所有did:btc用户都能做到。然而，专用于did:btc的软件可以设计成以简单、高效的方式运行——仅从比特币区块链索引相关交易并在处理后丢弃其他非必要内容。
+
+<section class="informative">
+# 术语
+
+本节定义了本规范中使用的术语。每当这些术语在本规范中出现时，都会包含指向这些术语的链接。
+
+<dl class="termlist">
+
+<dt><dfn data-lt="didindex">DID索引</dfn></dt>
+<dd>
+在批量DID创建交易中指定DID的索引。批量创建交易包含一个公钥的字节向量，可以根据密钥长度将其分成数组，DID索引是该数组中公钥的位置。
+
+例如，一个包含十个32字节ed25519公钥的批次将有一个320字节的向量，其中前32字节代表第一个公钥，接下来的32字节代表第二个公钥，依此类推。
+</dd>
+
+<dt><dfn data-lt="didutxo">DID UTXO</dfn></dt>
+<dd>
+用于控制DID的 UTXO(未花费比特币交易输出)。它在与DID本身相同的交易中同时创建，并可用于未来交易中更新或停用DID。DID UTXO是一个支付至Taproot（p2tr）输出，允许为DID定义复杂的花费条件。
+</dd>
+
+
+<dt><dfn data-lt="multikey">多键</dfn></dt>
+<dd>
+一种数据模型，结合了指示密钥类型的前缀和公钥字节，并以[MULTIBASE](https://microstrategy.github.io/did-btc-spec/#bib-multibase)格式编码。更多细节见[VC-DATA-INTEGRITY](https://www.w3.org/TR/vc-data-integrity/#multikey)规范。
+</dd>
+
+<dt><dfn data-lt="txref">TxRef</dfn></dt>
+<dd>
+TxRef 编码提供了一种方便且易于阅读的方法来引用已确认的比特币交易，并可选地引用该交易中的特定输出。did:btc利用TxRef创建了一种标准化、可靠且简洁的方法来引用与DID关联的比特币交易。TxRef在[BIP-136](https://microstrategy.github.io/did-btc-spec/#bib-bip-136)中定义。
+</dd>
+
+<dt><dfn data-lt="script">脚本</dfn></dt>
+<dd>
+用于比特币交易的 [Opcodes](https://en.bitcoin.it/wiki/Script#Opcodes) (操作码) 组成的[脚本语言)(https://en.bitcoin.it/wiki/Script)。
+</dd>
+
+<dt><dfn data-lt="scriptpubkey">ScriptPubKey</dfn></dt>
+<dd>
+定义输出花费条件的比特币[脚本](https://microstrategy.github.io/did-btc-spec/#dfn-script)。节点在比特币网络上验证此脚本以确定花费输出的交易是否有效。
+</dd>
+
+
+</dl>
+</section>
+
+
+# DID 方案规范
+
+## 名称
+
+将标识此DID方法的名称字符串为：btc。使用此方法的DID必须以以下前缀开头：did:btc。根据DID规范，此字符串必须为小写。
+
+要引用比特币测试网网络上的交易，DID应使用以下前缀：**did:btc:test**。
+
+## 特定标识符
+
+方案特定标识符是一个符合[BIP-136](https://microstrategy.github.io/did-btc-spec/#bib-bip-136)的[TxRef](#dfn-txref)，它引用了创建DID的比特币交易。
+
+<aside class="example"
+title="Example did:btc identifier using TxRef">
+did:btc:xg4x-ay5y-q5zq-232
+</aside>
+
+## DID 操作
+
+### 创建
+
+DID创建交易必须在其第一个输出中包含一个OP_RETURN，按以下顺序包含字节：
+
+1. 3字节：ASCII 格式的did作为标记交易为DID创建交易的人类可读方式。
+
+2. 1字节：一个包含位(bit-wise)标志的字节，用于指示DID的初始主题密钥(initial subject key)将使用的[验证关系](https://w3c.github.io/did-core/#verification-relationships)。这些位从最低位到最高位依次为：
+
+    1. 认证
+
+    2. 声明
+
+    3. 密钥协商 Key Agreement
+
+    4. 权限调用 Capability Invocation
+
+    5. 权限委托 Capability Delegation
+
+3. 最多76字节：初始主题公钥的[Multikey](#dfn-multikey)格式，该格式将原始公钥与一个编解码器前缀结合，根据Multicodec规范指示密钥类型。
+
+<aside class="example"
+title="按字节分解的OP_RETURN输出">
+[BlockStream Testnet Explorer](https://blockstream.info/testnet/tx/5acfba9c13bd92c27e9aa8b8cd75d03730571b2dfcc7f81543e9c15cc1efb961?expand)上可查看的交易
+
+交易的第一个输出的[ScriptPubKey](#dfn-scriptpubkey)为6a2664696403ed01ab96ce260bf08a2fc35eda73fee1357b67e50946ca100af0c452ae695ac73053。
+
+- 6a：OP_RETURN操作码。
+
+- 26：一个操作码，指示接下来的36字节应该被推送到栈上——这实际上是OP_RETURN有效载荷的长度，不能超过80字节。
+
+- 646964：ASCII中的did
+
+- 03：一个字节，最低两位设置，表示接下来的密钥应该具有DID的认证和声明验证关系。
+
+- ed01：一个Multicodec前缀ed编码为varint，表示接下来将是一个32字节的ed25519公钥。
+
+- ab96ce260bf08a2fc35eda73fee1357b67e50946ca100af0c452ae695ac73053：一个32字节的ed25519公钥。
+</aside>
+
+它**可能**包含一个支付至Taproot（p2tr）作为其第二个输出，可用于未来比特币交易中更新或停用DID。这个输出称为DID UTXO。如果交易没有第二个输出，或者第二个输出不是p2tr输出，那么DID是最终的，不能在以后的时间进行更新或停用。
+
+一旦此交易被确认，其确认的区块高度和交易索引可以编码成TxRef以形成did:btc标识符。DID创建者必须等待交易被确认后至少6个区块再发布其标识符，以减少链重组的风险，以避免 DID的区块高度或交易索引被更改。
+
+<aside class="example" title="TxRef编码">
+  上述交易在以下位置被确认：
+
+- 区块高度为2582910。
+- 交易索引为132。
+- 在测试网网络上。
+
+这编码成TxRef为xuh5-ayyy-q3q0-kp0，结果产生一个DID标识符为did:btc:test:xuh5-ayyy-q3q0-kp0。
+</aside>
+
+#### 批量创建
+
+为了减少交易开销和费用成本，DID可以批量创建。由于多个公钥很快就会超过80字节的OP_RETURN限制，因此批量创建交易会将公钥放在揭示交易的见证部分。这需要一个承诺交易(commitment transaction)和一个揭示交易(reveal transaction)，但同时增加了开销。然而，对于批次中的任何数量的DID和密钥，开销是固定的，因此每个创建的DID消耗的虚拟字节成本渐近地接近公钥大小的25%（考虑到隔离见证压缩）。对于ed25519密钥，这个渐近值大约是8字节（32 * 0.25）。
+
+| Batch Size | Commitment VBytes | Reveal VBytes | Total VBytes | VBytes / DID |
+|------------|-------------------|---------------|--------------|--------------|
+| 2          | 154               | 148           | 302          | 151          |
+| 10         | 154               | 213           | 367          | 36.7         |
+| 100        | 154               | 937           | 1091         | 10.91        |
+| 1000       | 154               | 8178          | 8332         | 8.33         |
+| 10,000     | 154               | 80594         | 80748        | 8.07         |
+
+每批DID最多与一个[DID UTXO](#dfn-didutxo)关联，这对于共享公共控制者的DID集合来说是一个高效的选择。有关此过程的更多细节，请参见[批量更新](https://microstrategy.github.io/did-btc-spec/#batch-update)。
+
+使用以下步骤批量创建DID：
+
+1. 组装一个在揭示交易中被揭示的有效载荷(payload)。这个有效载荷必须按顺序包含以下字节：
+
+    1. ASCII中的did，作为标记交易为DID创建交易的人类可读方式。
+
+    2. 一个以varint编码的Multicodec前缀，指示接下来密钥的类型。
+
+    3. 一个包含位标志的字节，用于指示将用于以下密钥的验证关系。
+
+    4. 一个字节向量，按顺序包含一系列公钥。
+
+2. 创建一个包含以下数据和操作码的铭文[ScriptPubKey](#dfn-scriptpubkey)：
+
+    1. 定义揭示交易花费条件的[脚本](#dfn-script)。在最简单的情况下，这个脚本会要求一个指定公钥的签名：
+
+        1. 一个32字节的仅x坐标的secp256k1公钥。
+
+        2. OP_CHECKSIG - 表示交易应该有一个与上述公钥匹配的签名。
+
+    2. OP_FALSE后跟OP_IF - 确保遵循比特币协议的节点不进入包含有效载荷的if分支。
+
+    3. 第1步中的有效载荷，以520字节的块分割。
+
+    4. `OP_ENDIF`
+
+3. 创建一个承诺交易，其单一输出根据[BIP-341](https://microstrategy.github.io/did-btc-spec/#bib-bip-341)为第2步中的[ScriptPubKey](#dfn-scriptpubkey)的脚本路径承诺。
+
+4. 创建一个揭示交易，使用其脚本路径花费第3步的输出。这将揭示第1步中的有效载荷，有效地将其写入在确认它的区块中。
+
+5. 为批次中的每个密钥创建[TxRefs](#dfn-txref)。这是通过使用已确认交易的区块高度和交易索引以及作为出点的[DID索引](#dfn-didindex)来完成的。[DID索引](#dfn-didindex)是第1d步中描述的字节向量中公钥的索引。
+
+| Block Height | Tx Index | DID Index | TxRef                  |
+|--------------|----------|-----------|------------------------|
+| 2575424      | 1295     | 0         | xqyx-ay0g-pxhg-hvu     |
+| 2575424      | 1295     | 1         | 8qyx-ay0g-ppqq-9x6q-s0 |
+| 2575424      | 1295     | 2         | 8qyx-ay0g-pzqq-rqps-jw |
+
+### 读取（解析）
+
+使用以下步骤可以解析一个did:btc DID：
+
+1. 解码它包含的[TxRef](#dfn-txref)，它提供了一个区块高度和交易索引。
+
+2. 获取区块（例如，使用 bitcoin core 节点的getblock调用）并解析它以提取给定索引处的交易。
+
+3. 验证交易是否包含以ASCII中的did开头的OP_RETURN作为其第一个输出。
+
+4. 如果存在，提取OP_RETURN有效载荷的第4字节。读取标记的位（如创建中所指定）以确定DID的验证关系。
+
+5. 如果存在，提取OP_RETURN有效载荷的剩余字节。将此解码为MultiKey以确定主题密钥的密钥类型和公钥。
+
+6. 如果存在，提取第二个输出中DID UTXO的ScriptPubKey中使用的公钥，以确定控制者密钥。
+
+7. 使用上述第3至6步收集的数据构建一个DID文档。
+
+<pre class="example json" title="从创建交易中构建的did:btc DID文档">
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/multikey/v1"
+  ],
+  "id": "x20r-ayaz-qqtl-ljk",
+  "controller": "did:key:z6DtNrvHVvvKHB7m8LrCmt131TGH7DbzvcPo9mZRoCt5rqms",
+  "verificationMethod": [
+    {
+      "id": "x20r-ayaz-qqtl-ljk#key-0",
+      "controller": "x20r-ayaz-qqtl-ljk",
+      "type": "Multikey",
+      "publicKeyMultibase": "z6MkfNwZ7ncwr54BVWA9taEJLaHAWYEuqMNQfBzrwLEoaoVB"
+    }
+  ],
+  "authentication": [
+    "x20r-ayaz-qqtl-ljk#key-0"
+  ],
+  "assertion": [
+    "x20r-ayaz-qqtl-ljk#key-0"
+  ]
+}
+</pre>
+
+上述步骤解析了DID创建时的状态。以下步骤可以确定DID是否已更新，并获取其DID文档的最新版本：
+
+1. 确定最后检查的交易是否有p2tr输出；对于创建交易，这应该在第二个索引中，而对于更新交易，这应该在第一个索引中。如果没有，应将DID视为最终的。如果有，继续步骤2。
+
+2. 检查输出是否已被花费。如果没有，DID尚未更新。如果已被花费，继续步骤3。
+
+3. 获取花费上一步输出的交易。
+
+4. 检查花费交易的见证是否有两个或更多元素，这表明是脚本路径花费。如果没有，这个交易不更新DID，返回步骤1。如果有，继续步骤5。
+
+5. 解析第二个见证元素，它持有锁定脚本，并检查它是否包含一个OP_IF字节后跟ASCII中的did。如果没有，这个交易不更新DID，返回步骤1。如果有，继续步骤6。
+
+6. 解析锁定脚本的其余部分以提取更新的有效载荷。这是通过从第一个OP_IF字节后开始，每520字节读取数据，并在每520字节之前用OP_IF字节分隔，最后以OP_ENDIF结束来完成的。由于比特币协议限制字节向量大小为520字节，因此需要分块。有效载荷中的前三个did字节应该被移除。
+
+7. 有效载荷将是一个描述DID文档更新的JSON文档。这应该被解析并应用于DID文档。有关如何应用这些更新的结构和程序，请参见更新部分。
+
+8. 返回步骤1并重复。
+
+### 更新
+
+did:btc DID可以在链上更新，保留DID标识符，同时修改其对应的密钥和/或DID文档的内容。这是通过创建一个新交易来完成的，该交易花费给定DID的DID UTXO。
+
+更新是JSON文档，包含4个可能的键：
+
+1. vm：更改验证方法，即用作DID主题的操作密钥。这个键是一个操作数组，可以指定一个索引i、一个Multikey k和/或一个验证关系标志vr。操作分为三个子类型：
+
+    1. 删除，仅提供要移除的密钥的索引。
+
+    2. 更新，指定要更新的密钥的索引以及更新的密钥和/或验证关系。
+
+    3. 追加，指定一个密钥和验证关系，但不指定索引。
+
+2. u：DID文档中密钥的更新。这是一个要在文档中更新的密钥数组。如果一个密钥的值是数组，只有带有提供的id的数组条目会被更新。
+
+3. d：从DID文档中删除的密钥。这是一个要从文档中删除的密钥数组。如果一个密钥的值是数组，只有带有提供的id的数组条目会被删除。
+
+4. a：要追加到DID文档中的密钥。这是一个要添加到文档中的密钥数组。如果一个密钥的值是数组，数组内的条目将被添加到现有数组中。
+
+下面的JSON文档提供了上述所有类型更新的示例。
+
+```json
+{
+  "vm": [ // 更改验证方法
+    { "i": 0 }, // 删除第0个密钥
+    { "i": 1, "k": "z6Mkk8UN3tPb4sEhEvTGbv5Q6qXsG2hBwsWNjwya4tBBqLur" }, // 更新第1个密钥
+    { "i": 3, "vr": 7 }, // 更新第3个密钥的验证关系
+    { "k": "z6Mkr158mX63UMtTWm42jNbkhExBcVqJWwg5uo9vbyoBHGFk", "vr": 3 } // 追加一个新密钥
+  ],
+  "u": [ // DID文档中密钥的更新
+    {
+      "service": [{
+        "id": "linked-domain1", // 更新id为linked-domain1的服务
+        "serviceEndpoint": "https://didservice.com" // 更新服务端点
+      }]
+    }
+  ],
+  "d": [ // 从DID文档中删除的密钥
+    {
+      "service": [{
+        "id": "linked-domain2", // 删除id为linked-domain2的服务
+      }]
+    }
+  ],
+  "a": [ // 要追加到DID文档中的密钥
+    {
+      "service": [{
+        "id": "linked-domain3", // 创建id为linked-domain3的服务
+        "type": "LinkedDomains",
+        "serviceEndpoint": "https://bar.example.com"
+      }]
+    }
+  ]
+}
+```
+
+这个JSON文档被写入在花费给定DID的DID UTXO的交易的见证中。文档内的更改被应用于相应的DID。
+
+更新交易可以在交易的第一个输出索引中创建一个新的DID UTXO输出，以允许对DID进行未来的更新。如果没有创建新的DID UTXO输出，DID变为最终版本，不能进一步更新或撤销。
+
+#### 批量更新
+
+对批量创建的DID进行更新是上述结构的JSON数组中的更新。例如，一个旨在更新批次中第5个（基于零）索引的DID的交易将按以下方式结构化：
+
+```json
+[
+  { 
+    "i": 5,
+    "p": { 
+      ... // updates in the structure described in [Update](#update)
+    }
+  }
+]
+```
+
+### 停用（Revoke）
+
+当其DID UTXO在一个交易中被花费，且第一个输出是一个OP_RETURN，其有效载荷为ASCII中的单字节d时，一个did:btc DID被认为是停用的。这表明DID应该被视为从停用交易的时间起永久停用。
+
+#### 批量停用
+
+可以通过揭示一个包含一个对象的JSON文档来停用批量创建的一个或多个DID，该对象在键d下有一个DID索引位置数组。参见下面的示例：
+
+```json
+[
+  {
+    "d": [4, 7, 9] // deactivate the 4th, 7th, and 9th indexed DIDs in the batch
+  }
+]
+```
+
+# 安全考虑
+
+did:btc继承了比特币本身的安全框架。因此，它对许多常见的互联网攻击具有抵抗力，包括：
+
+- 窃听：比特币交易本质上是公开的，因此窃听不适用。
+
+- 重放：比特币网络上不能进行重放攻击，因为每笔交易永久消耗了它从中花费的UTXO。相同的交易重放将被比特币网络拒绝。
+
+- 消息插入：通常不可能向比特币交易中插入错误数据，因为任何攻击者插入的数据都会导致签名验证失败。一旦交易由其创建者签名并广播，交易的任何第三方篡改都会导致它变得无效。
+
+- 中间人攻击：如上所述，中间人攻击无法在比特币交易上执行，因为比特币交易的任何篡改都会导致它变得无效。
+
+- 删除：比特币交易迅速广播到由数千个节点组成的网络中，删除它们变得不切实际。一旦在区块中确认，删除交易几乎变得不可能，因为这将需要持续的51%攻击。
+
+- 修改：如上所述，修改在签名和/或确认后的交易在比特币上是不可能的。
+
+- 服务拒绝或放大攻击：虽然这些技术上可能在比特币网络上发生，但比特币协议已经采取了许多对策，并且自2009年启动以来几乎实现了100%的正常运行时间。用于did:btc方法的比特币节点面临的DoS威胁或挑战并不超出网络上任何比特币节点已经面临的。
+
+然而，与密钥管理相关的安全考虑是存在的。攻击者如果窃取了钱包密钥，可以永久控制DID并欺诈性地更新或撤销它们。同样，丢失的钱包密钥会导致永久失去更新或撤销相关DID的能力。
+
+因此，DID创建者和控制者应该考虑使用钱包最佳实践，如多签名钱包和备份种子短语。
+
+# 隐私考虑
+
+did:btc继承了比特币本身的隐私框架。区块链是公开的，因此所有交易，包括DID数据和操作，都是公开的。然而，现实世界的身份并未与比特币地址和交易绑定。因此，区块链上的DID可以是匿名的。
+
+根据DID最佳实践，个人信息应该避免记录在账本上。这不仅是因为区块链的公开性而引起的隐私问题，而且由于任何人都可以写入区块链，这本质上是不可靠的。像任何其他任意数据一样，关于身份的虚假声明或与现实世界身份的连接可能会被记录在区块链上。
+
+## 监控
+
+与DID创建和更新相关的链上活动是公开的，可能会泄露DID控制者的信息。例如，使用10 BTC输入创建DID的交易表明，DID的创建者至少拥有10 BTC。
+
+## 关联
+
+区块链的观察者也可能使用区块链分析，将DID交易与其他DID交易或其他金融交易关联起来。例如，具有相同控制密钥的DID或同一批次中的DID可能会被轻易地链接在一起。
+
+</body>
+</html>
