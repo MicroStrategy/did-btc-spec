@@ -494,7 +494,7 @@ Deactivating one or more DIDs that were created in a batch can be done by reveal
 
 However, there are security considerations pertaining to key management. An attacker that compromises wallet keys can assume permanent control over DIDs and fraudulently update or revoke them. Similarly, lost wallet keys result in permanent loss of ability to update or revoke associated DIDs.
 
-For this reason, DID creators and controllers should consider using wallet best practices such as multi-signature wallets and backup seed phrases.
+For this reason, DID creators and controllers should consider using wallet best practices such as multi-signature wallets and backup seed phrases. They should also consider pre-creating a deactivation (revocation) transaction but not broadcasting it, with similar considerations to a PGP revocation certificate.
 
 # Privacy Considerations
 
