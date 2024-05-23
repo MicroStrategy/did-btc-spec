@@ -311,7 +311,7 @@ DIDs are created in batches using the steps below.
 
 3. Create a commitment transaction with a single output that commits to the [ScriptPubKey](#dfn-scriptpubkey) in step 2 for its script path according to [[BIP-341]].
 
-4. Create a reveal transaction that spends the output from step 3 using its script path. This will reveal the payload from step 1, effectively inscribing it in the block that confirms it.
+4. Create a reveal transaction that spends the output from step 3 using its script path. This will reveal the payload inscribed in step 1 in the block that confirmed it.
 
 5. Create [TxRefs](#dfn-txref) for each key in the batch. This is done by using the block height and tx index of the confirmed transaction as well as the [DID Index](#dfn-didindex) as the outpoint. The [DID Index](#dfn-didindex) is the index of the public key in the byte vector described in step 1d above.
 
