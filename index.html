@@ -486,7 +486,7 @@ Deactivating one or more DIDs that were created in a batch can be done by reveal
 
 - Man-in-the-middle: Like insertion attacks above, man-in-the-middle attacks cannot be executed on bitcoin transactions as any tampering of the bitcoin transaction causes it to become invalid.
 
-- Deletion: Bitcoin transactions are rapidly broadcast to a network consisting of thousands of nodes, and deleting them becomes impractical. Once confirmed in a block, deleting the transaction becomes effectively impossible as it would require a sustained 51% attack.
+- Deletion: Bitcoin transactions are rapidly broadcast to a network consisting of thousands of nodes, and deleting them becomes impractical. Once confirmed in a block, deleting the transaction becomes effectively impossible, as the energetic cost of deleting the transactions increases linearly with the number of confirmations, and increases with increased mining difficulty.
 
 - Modification: As with deletion, insertion, or man-in-the-middle attacks, modifying transactions after they have been signed and/or confirmed is not possible on bitcoin.
 
