@@ -144,11 +144,13 @@ There are other DID methods that use blockchains other than bitcoin, and this se
 
 Despite the noted improvements over previous DID methods using the bitcoin blockchain, there are still several drawbacks and considerations of `did:btc` compared to methods that use less secure blockchains or trusted data sources such as internet domains.
 
-Even with the SegWit discount, making bitcoin transactions and consuming bitcoin block space can be expensive. This DID method is likely the most expensive per byte of DID document data used. Although this confers some benefit against sybil attacks by placing a cost on creating identities, this cost is also incurred by legitimate users. 
+Even with the SegWit discount, making bitcoin transactions and consuming bitcoin block space can be expensive. This DID method is likely to be the most expensive per byte of DID document data used. Although this confers some benefit against sybil attacks by placing a cost on creating identities, this cost is also incurred by legitimate users.
 
-The price of block space also fluctuates greatly and can often lead to wait times of hours or days before a broadcast transaction is included in a block. `did:btc` operations will never be instant, and may take hours. However, urgent operations can be expedited for an additional fee.
+The price of block space also fluctuates greatly and can often lead to wait times of hours or days before a broadcast transaction is included in a block. `did:btc` operations will never be instant, and may take hours or fail altogether. However, urgent operations can be expedited for an additional fee.
 
-Resolving `did:btc` dids requires access to a bitcoin node. Although many block explorers and other public servers (such as [Electrum](https://electrum.org/)) offer access to bitcoin blockchain data for free, they introduce some degree of trust and external dependencies - which is exactly what `did:btc` seeks to eliminate. Running ones own bitcoin node requires some degree of computing power and technical proficiency and cannot be expected of all `did:btc` users. However, software specific to `did:btc` can be designed to run in a simple, efficient way - indexing only pertinent transactions from the bitcoin blockchain and discarding everything else after it has been processed.
+Maintaining a non-final `did:btc` requires custodying and securing multiple bitcoin keys (secp256k1) and managing the associated UTXOs that are used to update or deactivate the DID.
+
+Resolving `did:btc` dids requires access to a bitcoin node. Although many block explorers and other public servers (such as [Electrum](https://electrum.org/)) offer access to bitcoin blockchain data for free, they introduce some degree of trust and external dependencies - which is exactly what `did:btc` seeks to eliminate. Running ones own bitcoin node requires some degree of computing power and technical proficiency and cannot be expected of all `did:btc` users, although this is achievable with inexpensive consumer-grade hardware. However, software specific to `did:btc` can be designed to run in a simple, efficient way - indexing only pertinent transactions from the bitcoin blockchain and discarding everything else after it has been processed.
 
 <section class="informative">
 # Terminology
