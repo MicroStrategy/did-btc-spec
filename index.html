@@ -102,7 +102,7 @@ The goal of this method is to deliver trustless, tamper-proof, and long-lived de
 
 Although bitcoin transactions typically contain data pertaining to the movement of coins from one address to another, they may also contain arbitrary data. A bitcoin [opcode](https://en.bitcoin.it/wiki/Script#Opcodes), [OP_RETURN](https://en.bitcoin.it/wiki/OP_RETURN), not only marks an output as unspendable, but it also allows up to 80 bytes of arbitrary data to be added to the transaction. This has historically been used to add short messages, links, and hashes to the blockchain.
 
-### Inscriptions
+### Inscription Envelopes
 
 Bitcoin transactions consist primarily of two main pieces of data:
 
@@ -110,13 +110,13 @@ Bitcoin transactions consist primarily of two main pieces of data:
 
 2. "Inputs" (a.k.a "prevouts"), which reference previous outputs and provide data that satisfies their spending requirements (e.g. a signature matching a specified public key). The value of all inputs must be greater than or equal to the value of all outputs, thereby ensuring coins cannot be created "out of thin air."
 
-A protocol change in 2017, Segregated Witness ([SegWit](https://en.wikipedia.org/wiki/SegWit)), introduced a third piece of data known as the "witness." SegWit transactions place all data necessary to satisfy the spending conditions for the inputs in the witness rather than the inputs, and this data is weighted at 25% the rate at which all other transaction data is weighted for purposes of block space consumption and required fees. This makes witness data significantly more economical as compared to, for example, `OP_RETURN` data which is part of the a transaction's outputs.
+A protocol change in 2017, Segregated Witness ([SegWit v0](https://en.wikipedia.org/wiki/SegWit)), introduced a third piece of data known as the "witness." SegWit transactions place all data necessary to satisfy the spending conditions for the inputs in the witness rather than the input script, and this data is weighted at 25% the rate at which all other transaction data is weighted for purposes of block space consumption and required fees. This makes witness data significantly more economical as compared to, for example, `OP_RETURN` data which is part of the a transaction's outputs.
 
 Another protocol change in 2021, Taproot (aka SegWit v1), made numerous changes to the way witness data could be used. Notably, it lifted a limit of 10,000 bytes on the size of the [ScriptPubKey](#dfn-scriptpubkey).
 
-The removal of this limit combined with the discount for witness data led to a technique known as "inscriptions" whereby arbitrary data is stored in the witness of a transaction. This data is deliberately ignored by the bitcoin protocol, but can be extracted and parsed from blocks containing them by inscription-aware software. Images and other rich media can be stored within this arbitrary data.
+The removal of this limit combined with the discount for witness data led to a technique known as ["envelopes"](https://docs.ordinals.com/inscriptions.html) whereby arbitrary data is stored in the witness of a transaction. This data is deliberately ignored by the bitcoin script execution, but can be extracted and parsed from blocks containing them by inscription-aware software. Images and other rich media can be stored within this arbitrary binary data.
 
-`did:btc` uses a similar (but slightly modified) approach to inscriptions as Ordinals but stores only DID-related data and updates. This allows for DID documents to be created and updated with few restrictions on size and content while taking advantage of the SegWit discount.
+`did:btc` uses a similar approach to inscriptions as [Ordinals](https://docs.ordinals.com/) but stores only DID-related data and updates. This allows for DID documents to be created and updated with few restrictions on size and content while taking advantage of the SegWit discount.
 
 ## Comparison with Existing DID Methods
 
