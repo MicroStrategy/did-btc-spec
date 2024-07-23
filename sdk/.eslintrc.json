@@ -1,0 +1,58 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "project": ["./tsconfig.json"]
+  },
+  "rules": {
+    "no-throw-literal": ["error"],
+    "linebreak-style": ["error", "unix"],
+    "semi": ["error", "always"],
+    "eqeqeq": ["error", "always"],
+    "curly": "error",
+    "quote-props": ["error", "as-needed"],
+    "no-empty": ["warn", { "allowEmptyCatch": false }],
+    "func-names": "off",
+    "brace-style": ["error", "1tbs", { "allowSingleLine": true }],
+    "eol-last": "error",
+    "no-unneeded-ternary": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "radix": "error",
+    "comma-dangle": ["error", "always-multiline"],
+    "no-multiple-empty-lines": ["error", { "max": 2, "maxEOF": 1 }],
+    "func-name-matching": ["error", { "includeCommonJSModuleExports": false }],
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/explicit-module-boundary-types": "error",
+    "@typescript-eslint/no-this-alias": "error",
+    "@typescript-eslint/ban-ts-comment": [
+      "error",
+      {
+        "ts-expect-error": "allow-with-description",
+        "ts-ignore": "allow-with-description",
+        "ts-nocheck": "allow-with-description",
+        "ts-check": false
+      }
+    ],
+    "@typescript-eslint/require-array-sort-compare": [
+      "error",
+      {
+        "ignoreStringArrays": true
+      }
+    ],
+    "@typescript-eslint/no-unnecessary-type-assertion": "error",
+    "@typescript-eslint/await-thenable": "error"
+  }
+}
