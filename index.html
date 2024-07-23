@@ -443,7 +443,7 @@ Update transactions MAY create a new [DID UTXO](#dfn-didutxo) output in the firs
 
 #### Batch Update
 
-Updates to a DID that was created in a batch are a JSON array of updates in the structure above. For example, a transaction that intends to update the DID in the 5th (zero-based) index of a batch of DIDs would be structured as below:
+Updates to a DID that was created in a batch are a JSON array of updates in the structure above. For example, a transaction that intends to update the DID in the 5th (zero-based) index of a batch of DIDs would have a JSON structured as below:
 
 ```json
 [
@@ -456,21 +456,23 @@ Updates to a DID that was created in a batch are a JSON array of updates in the 
 ]
 ```
 
+DIDs in a batch can be deactivated in a similar way to updates, by specifying the index `i` of the DID to deactivate while providing no `p` update payload. For example, the following JSON would deactivate the 4th (zero-based) indexed DID in a batch:
+
+```json
+[
+  { 
+    "i": 4
+  }
+]
+```
+
 ### Deactivate (Revoke)
 
 A `did:btc` DID is considered deactivated when its [DID UTXO](#dfn-didutxo) is spent in a transaction where the first output is an `OP_RETURN` with a payload of a single byte of `d` in ASCII. This indicates the DID should be considered permanently deactivated as of the time of the deactivation transaction.
 
 #### Batch Deactivate
 
-Deactivating one or more DIDs that were created in a batch can be done by revealing a JSON document with a JSON array containing an object with an array at key `d` of [DID Index](#dfn-didindex) positions to deactivate. See the example below:
-
-```json
-[
-  {
-    "d": [4, 7, 9] // deactivate the 4th, 7th, and 9th indexed DIDs in the batch
-  }
-]
-```
+Deactivating DIDs in a batch is done by creating a [Batch Update](#batch-update) transaction with a payload that specifies the index of the DID to deactivate without an update payload.
 
 # Security Considerations
 
