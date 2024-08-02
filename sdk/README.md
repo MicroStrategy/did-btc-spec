@@ -140,28 +140,28 @@ flowchart TD
 The following code example demonstrates how to create a DID,
 
 ```javascript
-import { buildDidCreationTransaction, prependCodecToKey, VERIFICATION_RELATIONSHIP_FLAGS } from '@microstrategy/did-btc-sdk';
+import { buildDidCreationTransaction, prependCodecToKey, VerificationRelationshipFlags } from '@microstrategy/did-btc-sdk';
 
 let utxo = { // a p2tr UTXO to pay for the transaction
   txid: Buffer.from('48452f42ac0accd63a0467f7e0406945320061bd19971bf34478582d76e85dbe', 'hex'), // the transaction id of the UTXO,
-  vout: 0 // the output index of the UTXO,
-  amount: 4131295, // the amount of the UTXO in satoshis,
+  index: 0, // the output index of the UTXO,
+  amount: 4131295 // the amount of the UTXO in satoshis,
 };
-let privkey: Buffer; // the keypath private key of the UTXO
+let privkey = Buffer; // the keypath private key of the UTXO
 
-let ed25519Pubkey: Buffer; // an ed25519 public key of the DID subject
+let ed25519Pubkey = Buffer; // an ed25519 public key of the DID subject
 // convert the ed25519 public key to a multikey
 const multikey = prependCodecToKey(ed25519Pubkey, 'ed25519-pub');
 
-const verificationRelationshipFlags = VERIFICATION_RELATIONSHIP_FLAGS.AUTHENTICATION | VERIFICATION_RELATIONSHIP_FLAGS.ASSERTION; // flags to indicate that this public key can be used for authentication and assertion
-const satsPerVbyte = 123; // the fee rate in satoshis per vbyte, this can be fetched from a fee estimation service or API
+const verificationRelationshipFlags = VerificationRelationshipFlags.AUTHENTICATION | VerificationRelationshipFlags.ASSERTION; // flags to indicate that this public key can be used for authentication and assertion
+const satsPerVByte = 123; // the fee rate in satoshis per vbyte, this can be fetched from a fee estimation service or API
 
-const { txHex } = buildDidCreationTransaction(
+const { txHex } = buildDidCreationTransaction( {
   multikey,
   walletUtxos: [{ utxo, privkey }],
   verificationRelationshipFlags,
-  satsPerVbyte,
-);
+  satsPerVByte,
+} );
 ```
 
 The `txHex` can then be broadcast to the bitcoin network using the client of your choice.
