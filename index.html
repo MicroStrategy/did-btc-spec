@@ -102,7 +102,7 @@ The goal of this method is to deliver trustless, tamper-proof, and long-lived de
 
 Although bitcoin transactions typically contain data pertaining to the movement of coins from one address to another, they may also contain arbitrary data. A bitcoin [opcode](https://en.bitcoin.it/wiki/Script#Opcodes), [OP_RETURN](https://en.bitcoin.it/wiki/OP_RETURN), not only marks an output as unspendable, but it also allows up to 80 bytes of arbitrary data to be added to the transaction. This has historically been used to add short messages, links, and hashes to the blockchain.
 
-### Inscriptions
+### Inscription Envelopes
 
 Bitcoin transactions consist primarily of two main pieces of data:
 
@@ -110,13 +110,13 @@ Bitcoin transactions consist primarily of two main pieces of data:
 
 2. "Inputs" (a.k.a "prevouts"), which reference previous outputs and provide data that satisfies their spending requirements (e.g. a signature matching a specified public key). The value of all inputs must be greater than or equal to the value of all outputs, thereby ensuring coins cannot be created "out of thin air."
 
-A protocol change in 2017, Segregated Witness ([SegWit](https://en.wikipedia.org/wiki/SegWit)), introduced a third piece of data known as the "witness." SegWit transactions place all data necessary to satisfy the spending conditions for the inputs in the witness rather than the inputs, and this data is weighted at 25% the rate at which all other transaction data is weighted for purposes of block space consumption and required fees. This makes witness data significantly more economical as compared to, for example, `OP_RETURN` data which is part of the a transaction's outputs.
+A protocol change in 2017, Segregated Witness ([SegWit v0](https://en.wikipedia.org/wiki/SegWit)), introduced a third piece of data known as the "witness." SegWit transactions place all data necessary to satisfy the spending conditions for the inputs in the witness rather than the input script, and this data is weighted at 25% the rate at which all other transaction data is weighted for purposes of block space consumption and required fees. This makes witness data significantly more economical as compared to, for example, `OP_RETURN` data which is part of the a transaction's outputs.
 
 Another protocol change in 2021, Taproot (aka SegWit v1), made numerous changes to the way witness data could be used. Notably, it lifted a limit of 10,000 bytes on the size of the [ScriptPubKey](#dfn-scriptpubkey).
 
-The removal of this limit combined with the discount for witness data led to a technique known as "inscriptions" whereby arbitrary data is stored in the witness of a transaction. This data is deliberately ignored by the bitcoin protocol, but can be extracted and parsed from blocks containing them by inscription-aware software. Images and other rich media can be stored within this arbitrary data.
+The removal of this limit combined with the discount for witness data led to a technique known as ["envelopes"](https://docs.ordinals.com/inscriptions.html) whereby arbitrary data is stored in the witness of a transaction. This data is deliberately ignored by the bitcoin script execution, but can be extracted and parsed from blocks containing them by inscription-aware software. Images and other rich media can be stored within this arbitrary binary data.
 
-`did:btc` uses a similar (but slightly modified) approach to inscriptions as Ordinals but stores only DID-related data and updates. This allows for DID documents to be created and updated with few restrictions on size and content while taking advantage of the SegWit discount.
+`did:btc` uses a similar approach to inscriptions as [Ordinals](https://docs.ordinals.com/) but stores only DID-related data and updates. This allows for DID documents to be created and updated with few restrictions on size and content while taking advantage of the SegWit discount.
 
 ## Comparison with Existing DID Methods
 
@@ -126,9 +126,9 @@ There are DID methods that exist which use the bitcoin blockchain as well, but t
 
 The Bitcoin Reference DID method (`did:btcr`) has a number of similarities to `did:btc` in its stated purpose and design. However it has several limitations that are are addressed by `did:btc`.
 
-First, `did:btcr` defaults to using secp256k1 subject keys, which are older and considered less performant and secure compared to newer curves like ed25519. In contrast, `did:btc` allows for the use of any curve or key type, enhancing functionality and forward compatibility. 
+First, `did:btcr` defaults to using secp256k1 subject keys, which are older and generally considered less performant and secure compared to newer curves like ed25519. In contrast, `did:btc` allows for the use of any curve or key type, enhancing functionality and forward compatibility. 
 
-Secondly, `did:btcr` relies on referencing a URL to fetch DID document data, which compromises the immutable nature of the blockchain as the content at the URL may change or disappear over time. On the other hand, `did:btc` stores additional data for the DID document directly on-chain, ensuring its permanence and integrity. `did:btc` can store arbitrary amounts of data in the witness of bitcoin transactions through inscriptions, a technique made possible by taproot script path reveal transactions, which were not available when `did:btcr` was developed in 2019.
+Secondly, `did:btcr` relies on referencing a URL to fetch DID document data, which compromises the immutable nature of the blockchain as the content at the URL may change or disappear over time. On the other hand, `did:btc` stores additional data for the DID document directly on-chain, ensuring its permanence, integrity and provenance. `did:btc` can store arbitrary data in the witness of bitcoin transactions through inscriptions, a technique made possible by taproot script path reveal transactions, which were not available when `did:btcr` was developed in 2019.
 
 Lastly, `did:btc` draws a distinction between the "wallet keys" used to sign bitcoin transactions on chain and the "subject keys" that can be used to authenticate and make assertions as the DID subject. This allows for the controller of a DID to be distinct from its subject, enabling a third party to "manage" a DID on behalf of its subject or even require multiple signatures. In fact, the conditions required to control a DID can be as complex and secure as allowed by the bitcoin protocol to control coins. The keys necessary to update or revoke a DID, such as in the case of lost or compromised subject keys, can therefore be held to a higher degree of security than the subject keys themselves.
 
@@ -144,11 +144,13 @@ There are other DID methods that use blockchains other than bitcoin, and this se
 
 Despite the noted improvements over previous DID methods using the bitcoin blockchain, there are still several drawbacks and considerations of `did:btc` compared to methods that use less secure blockchains or trusted data sources such as internet domains.
 
-Even with the SegWit discount, making bitcoin transactions and consuming bitcoin block space can be expensive. This DID method is likely the most expensive per byte of DID document data used. Although this confers some benefit against sybil attacks by placing a cost on creating identities, this cost is also incurred by legitimate users. 
+Even with the SegWit discount, making bitcoin transactions and consuming bitcoin block space can be expensive. This DID method is likely to be the most expensive per byte of DID document data used. Although this confers some benefit against sybil attacks by placing a cost on creating identities, this cost is also incurred by legitimate users.
 
-The price of block space also fluctuates greatly and can often lead to wait times of hours or days before a broadcast transaction is included in a block. `did:btc` operations will never be instant, and may take hours. However, urgent operations can be expedited for an additional fee.
+The price of block space also fluctuates greatly and can often lead to wait times of hours or days before a broadcast transaction is included in a block. `did:btc` operations will never be instant, and may take hours or fail altogether. However, urgent operations can be expedited for an additional fee.
 
-Resolving `did:btc` dids requires access to a bitcoin node. Although many block explorers and other public servers (such as [Electrum](https://electrum.org/)) offer access to bitcoin blockchain data for free, they introduce some degree of trust and external dependencies - which is exactly what `did:btc` seeks to eliminate. Running ones own bitcoin node requires some degree of computing power and technical proficiency and cannot be expected of all `did:btc` users. However, software specific to `did:btc` can be designed to run in a simple, efficient way - indexing only pertinent transactions from the bitcoin blockchain and discarding everything else after it has been processed.
+Maintaining a non-final `did:btc` requires custodying and securing multiple bitcoin keys (secp256k1) and managing the associated UTXOs that are used to update or deactivate the DID.
+
+Resolving `did:btc` dids requires access to a bitcoin node. Although many block explorers and other public servers (such as [Electrum](https://electrum.org/)) offer access to bitcoin blockchain data for free, they introduce some degree of trust and external dependencies - which is exactly what `did:btc` seeks to eliminate. Running ones own bitcoin node requires some degree of computing power and technical proficiency and cannot be expected of all `did:btc` users, although this is achievable with inexpensive consumer-grade hardware. However, software specific to `did:btc` can be designed to run in a simple, efficient way - indexing only pertinent transactions from the bitcoin blockchain and discarding everything else after it has been processed.
 
 <section class="informative">
 # Terminology
@@ -166,7 +168,7 @@ For example, a batch containing ten 32 byte ed25519 public keys will have a 320 
 
 <dt><dfn data-lt="didutxo">DID UTXO</dfn></dt>
 <dd>
-The DID UTXO is an unspent bitcoin transaction output that is used to control a DID. It is created in the same transaction as the DID itself, and can be used to update or deactivate the DID in future transactions. The DID UTXO is a Pay-To-Taproot (`p2tr`) output, which allows for complex spending conditions to be defined for the DID.
+The DID UTXO is an unspent bitcoin transaction output that is used to control a DID. It is created in the same transaction as the DID itself, and can be used to update or deactivate the DID in future transactions. The DID UTXO must be a Pay-To-Taproot (`p2tr`) output, which allows for complex spending conditions to be defined for the DID.
 </dd>
 
 
@@ -309,7 +311,7 @@ DIDs are created in batches using the steps below.
 
 3. Create a commitment transaction with a single output that commits to the [ScriptPubKey](#dfn-scriptpubkey) in step 2 for its script path according to [[BIP-341]].
 
-4. Create a reveal transaction that spends the output from step 3 using its script path. This will reveal the payload from step 1, effectively inscribing it in the block that confirms it.
+4. Create a reveal transaction that spends the output from step 3 using its script path. This will reveal the payload inscribed in step 1 in the block that confirmed it.
 
 5. Create [TxRefs](#dfn-txref) for each key in the batch. This is done by using the block height and tx index of the confirmed transaction as well as the [DID Index](#dfn-didindex) as the outpoint. The [DID Index](#dfn-didindex) is the index of the public key in the byte vector described in step 1d above.
 
@@ -486,7 +488,7 @@ Deactivating DIDs in a batch is done by creating a [Batch Update](#batch-update)
 
 - Man-in-the-middle: Like insertion attacks above, man-in-the-middle attacks cannot be executed on bitcoin transactions as any tampering of the bitcoin transaction causes it to become invalid.
 
-- Deletion: Bitcoin transactions are rapidly broadcast to a network consisting of thousands of nodes, and deleting them becomes impractical. Once confirmed in a block, deleting the transaction becomes effectively impossible as it would require a sustained 51% attack.
+- Deletion: Bitcoin transactions are rapidly broadcast to a network consisting of thousands of nodes, and deleting them becomes impractical. Once confirmed in a block, deleting the transaction becomes effectively impossible, as the energetic cost of deleting the transactions increases linearly with the number of confirmations, and increases with increased mining difficulty.
 
 - Modification: As with deletion, insertion, or man-in-the-middle attacks, modifying transactions after they have been signed and/or confirmed is not possible on bitcoin.
 
@@ -494,7 +496,7 @@ Deactivating DIDs in a batch is done by creating a [Batch Update](#batch-update)
 
 However, there are security considerations pertaining to key management. An attacker that compromises wallet keys can assume permanent control over DIDs and fraudulently update or revoke them. Similarly, lost wallet keys result in permanent loss of ability to update or revoke associated DIDs.
 
-For this reason, DID creators and controllers should consider using wallet best practices such as multi-signature wallets and backup seed phrases.
+For this reason, DID creators and controllers should consider using wallet best practices such as multi-signature wallets and backup seed phrases. They should also consider pre-creating a deactivation (revocation) transaction but not broadcasting it, with similar considerations to a PGP revocation certificate.
 
 # Privacy Considerations
 
@@ -508,7 +510,7 @@ On-chain activity pertaining to DID creation and updates is public, and may leak
 
 ## Correlation
 
-Observers of the blockchain may also correlate DID transactions with other DID transactions or other financial transactions using blockchain analysis. For example, DIDs with the same controller key or DIDs within the same batch may be trivially linked together.
+Observers of the blockchain may also correlate DID transactions with other DID transactions or other financial transactions using blockchain analysis. For example, DIDs with the same controller key or DIDs within the same batch may be trivially linked together. Analysis of the on-chain history of a UTXO used to create a DID can link ownership of bitcoin funds to the controller of the DID, and future spending of any change outputs from the DID creation transaction.
 
 </body>
 </html>
