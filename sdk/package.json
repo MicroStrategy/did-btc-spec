@@ -1,6 +1,7 @@
 {
   "name": "did-btc-sdk",
   "type": "module",
+  "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "version": "1.0.0",
